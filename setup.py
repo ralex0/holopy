@@ -54,6 +54,10 @@ def configuration(parent_package='',top_path=''):
     config.add_data_files(join('holopy','core/tests','exampledata','*.jpg'))
     config.add_data_files(join('holopy','propagation','tests','gold','full_data','*.h5'))
     config.add_data_files(join('holopy','propagation','tests','gold','*.yaml'))
+    if os.name == "nt":
+        config.add_data_files(join('holopy', 'scattering', 'theory', 'tmatrix_f', 'S.exe'))
+    else:
+        config.add_data_files(join('holopy', 'scattering', 'theory', 'tmatrix_f', 'S'))
 
     config.get_version()
     return config
@@ -69,10 +73,9 @@ if __name__ == "__main__":
 
     #make Tmatrix fortran code
     if os.name == 'nt':
-        make=['mingw32-make']
+	    subprocess.check_call('gfortran -o S.exe S.lp.f lpq.f',cwd=join('holopy','scattering','theory','tmatrix_f'))
     else:
-        make=['make']
-    subprocess.check_call(make, cwd=join('holopy','scattering','theory','tmatrix_f'))
+    	subprocess.check_call(['make'], cwd=join('holopy','scattering','theory','tmatrix_f'))
 
     requires=[l for l in open("requirements.txt").readlines() if l[0] != '#']
     setup(configuration=configuration,
