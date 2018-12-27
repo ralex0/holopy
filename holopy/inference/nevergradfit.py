@@ -3,6 +3,8 @@
 """
 import time
 
+from concurrent import futures
+
 import numpy as np
 
 from holopy.core.holopy_object import HoloPyObject
@@ -16,17 +18,21 @@ from nevergrad import instrumentation as instru
 from nevergrad.optimization import optimizerlib
 
 class NevergradStrategy(HoloPyObject):
-    def __init__(self, optimizer='CMA', budget=100):
+    def __init__(self, optimizer='CMA', budget=100, num_workers=4):
         self.optimizer = optimizer
         self.budget = budget
+        self.num_workers = num_workers
 
     def optimize(self, model, data):
         time_start = time.time()
         cost = self.cost_function(model, data)
         dim = self._get_model_diminsion(model)
         optimizer = self._setup_optimizer(dim)
-        reccomendation = optimizer.optimize(cost, executor=None, batch_mode=True)
-        parameters = {key: value for key, value in zip(model.parameters.keys(), reccomendation)}
+        reccomendation = self._minimize(cost, optimizer)
+        if len(reccomendation) == 6:
+            parameters = {key: value for key, value in zip(['center.0', 'center.1', 'center.2', 'n', 'r', 'alpha'], reccomendation)}
+        else:
+            parameters = {key: value for key, value in zip(model.parameters.keys(), reccomendation)}
         perrors = self._estimate_error_from_fit()
         intervals = [UncertainValue(value, perrors, name=key)
                      for key, value in parameters.items()]
@@ -45,12 +51,12 @@ class NevergradStrategy(HoloPyObject):
                 return self._cost_function(data, scatterer, alpha=sixth)
                 #return np.min((-1 * AlphaModel(scatterer=scatterer, alpha=sixth, **optics).lnlike(params, data), 1e60))
 
-            x = instru.variables.Gaussian(mean=model.scatterer.center[0].guess, std=model.scatterer.center[0].interval/10)
-            y = instru.variables.Gaussian(mean=model.scatterer.center[1].guess, std=model.scatterer.center[1].interval/10)
-            z = instru.variables.Gaussian(mean=model.scatterer.center[2].guess, std=model.scatterer.center[2].interval/10)
-            n = instru.variables.Gaussian(mean=model.scatterer.n.guess, std=model.scatterer.n.interval/10)
-            r = instru.variables.Gaussian(mean=model.scatterer.r.guess, std=model.scatterer.r.interval/10)
-            alpha = instru.variables.Gaussian(mean=model.alpha.guess, std=.3)
+            x = instru.variables.Gaussian(mean=model.scatterer.center[0].guess, std=model.scatterer.center[0].interval/4)
+            y = instru.variables.Gaussian(mean=model.scatterer.center[1].guess, std=model.scatterer.center[1].interval/4)
+            z = instru.variables.Gaussian(mean=model.scatterer.center[2].guess, std=model.scatterer.center[2].interval/4)
+            n = instru.variables.Gaussian(mean=model.scatterer.n.guess, std=model.scatterer.n.interval/4)
+            r = instru.variables.Gaussian(mean=model.scatterer.r.guess, std=model.scatterer.r.interval/4)
+            alpha = instru.variables.Gaussian(mean=model.alpha.guess, std=model.alpha.interval/4)
 
             icost = instru.InstrumentedFunction(cost, x, y, z, n, r, alpha)
             return icost
@@ -78,7 +84,15 @@ class NevergradStrategy(HoloPyObject):
 
     def _setup_optimizer(self, dimension):
         return optimizerlib.registry[self.optimizer](dimension=dimension, 
-                                                     budget=self.budget)
+                                                     budget=self.budget,
+                                                     num_workers=self.num_workers)
+
+    def _minimize(self, cost, optimizer):
+        with futures.ThreadPoolExecutor(max_workers=optimizer.num_workers) as executor:
+            reccomendation = optimizer.optimize(cost, executor=executor, batch_mode=True)
+        if hasattr(cost, 'convert_to_arguments'):
+            reccomendation, _ = cost.convert_to_arguments(reccomendation)
+        return reccomendation
 
     def _estimate_error_from_fit(self):
         return 0

@@ -1,11 +1,12 @@
 from copy import copy
-
 import unittest
+import warnings
 
 import numpy as np
 
-
-from holopy.core.process import normalize
+import holopy as hp
+from holopy.core.io import get_example_data_path
+from holopy.core.process import normalize, bg_correct
 from holopy.core.tests.common import get_example_data
 from holopy.inference.model import AlphaModel
 from holopy.inference.prior import Prior, Uniform
@@ -26,14 +27,14 @@ gold_sphere = Sphere(1.582+1e-4j, 6.484e-7,
 class TestNevergradStrategy(unittest.TestCase):
     def test_nevergrad_OnePlusOne(self):
         cost = lambda x: _simple_cost_function(x, x_obs=1.0)
-        optimizer = optimizerlib.registry['OnePlusOne'](dimension=1, budget=200)
+        optimizer = optimizerlib.registry['OnePlusOne'](dimension=1, budget=256)
         result = optimizer.optimize(cost, executor=None, batch_mode=True)
         result_ok = np.allclose(result, 1.0, rtol=.001)
         self.assertTrue(result_ok)
 
     def test_nevergrad_CMA(self):
         cost = lambda x: _simple_cost_function(x, x_obs=np.array([1.0, 1.0]))
-        optimizer = optimizerlib.registry['CMA'](dimension=2, budget=200)
+        optimizer = optimizerlib.registry['CMA'](dimension=2, budget=512, num_workers=8)
         result = optimizer.optimize(cost, executor=None, batch_mode=True)
         result_ok = np.allclose(result, [1.0, 1.0], rtol=.001)
         self.assertTrue(result_ok)
@@ -41,12 +42,13 @@ class TestNevergradStrategy(unittest.TestCase):
     def test_NevergradStrategy(self):
         data = 0.5
         model = _SimpleModel(x = Uniform(0, 1))
-        strat = NevergradStrategy(optimizer='OnePlusOne', budget=200)
+        strat = NevergradStrategy(optimizer='OnePlusOne', budget=256)
         result = strat.optimize(model, data)
         result_ok = np.allclose(result.parameters['x'], .5, rtol=.001)
         self.assertTrue(result_ok)
 
-    def test_fit_mie_par_scatterer(self):
+    @unittest.skip("Skip for now until PS test passes")
+    def test_fit_gold_particle(self):
         holo = normalize(get_example_data('image0001'))
         center_guess = [
             Uniform(0, 1e-5, name='x', guess=.567e-5),
@@ -62,7 +64,7 @@ class TestNevergradStrategy(unittest.TestCase):
         theory = Mie(compute_escat_radial=False)
         model = AlphaModel(scatterer, theory=theory, alpha=alpha)
 
-        fitter = NevergradStrategy(optimizer='CMA', budget=200)
+        fitter = NevergradStrategy(optimizer='TBPSA', budget=256, num_workers=8)
         result = fitter.optimize(model, holo)
         fitted = result.scatterer
         print(result.parameters)
@@ -73,6 +75,46 @@ class TestNevergradStrategy(unittest.TestCase):
         self.assertTrue(
             np.isclose(result.parameters['alpha'], gold_alpha, rtol=0.1))
         self.assertEqual(model, result.model)
+
+    def test_fit_polystyrene_particle(self):
+        data = _load_PS_example_data()
+        scatterer_guess, alpha_guess = _get_PS_param_guesses()
+        model = AlphaModel(scatterer=scatterer_guess, theory=Mie(), alpha=alpha_guess)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            fit_strategy = NevergradStrategy(optimizer='OnePlusOne', budget=128, num_workers=8)
+            result = fit_strategy.optimize(model, data)
+
+        fitted = result.scatterer
+        
+        n_isok = np.isclose(fitted.n, 1.59, atol=1e-2)
+        r_isok = np.isclose(fitted.r, 0.5, atol=1e-1)
+        center_isok = np.isclose(fitted.center, (24.17,21.84,16.42), rtol=1e-1)
+        alpha_isok = np.isclose(result.parameters['alpha'], 0.7, atol=0.3)
+        isok = [n_isok, r_isok, *center_isok, alpha_isok]
+        self.assertTrue(all(isok))
+        self.assertEqual(model, result.model)
+
+def _load_PS_example_data():
+    imagepath = get_example_data_path('image01.jpg')
+    raw_holo = hp.load_image(imagepath, spacing = 0.0851, medium_index=1.33, 
+                                        illum_wavelen=0.660, 
+                                        illum_polarization=(1,0))
+    bgpath = get_example_data_path(['bg01.jpg', 'bg02.jpg', 'bg03.jpg'])
+    bg = hp.core.io.load_average(bgpath, refimg = raw_holo)
+    holo = bg_correct(raw_holo, bg)
+    return holo
+
+def _get_PS_param_guesses():
+    center_guess = [Uniform(0, 100, name='x', guess=24),
+                    Uniform(0, 100, name='y', guess=22),
+                    Uniform(0, 30, name='z', guess=15)]
+    scatterer_guess = Sphere(n=Uniform(1, 2, name='n', guess=1.59),
+                             r=Uniform(1e-8, 5, name='r', guess=.5),
+                             center=center_guess)
+    alpha_guess = Uniform(0.1, 1, name='alpha', guess=0.7)
+    return scatterer_guess, alpha_guess
 
 
 def _simple_cost_function(x, x_obs=None):
