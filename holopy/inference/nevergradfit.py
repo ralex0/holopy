@@ -42,7 +42,10 @@ class NevergradStrategy(HoloPyObject):
         else:
             # This branch is if the model is anything else... such as _SimpleModel
             parameters = {key: value for key, value in zip(model.parameters.keys(), reccomendation)}
-        perrors = self._estimate_error_from_fit()
+        perrors = self._estimate_error_from_fit(optimizer)
+        # TODO: Refactor this into the error estimate function
+        if hasattr(cost, 'convert_to_arguments'):
+            perrors, _ = cost.convert_to_arguments(perrors)
         intervals = self._make_intervals_from_parameters(parameters, perrors)
         d_time = time.time() - time_start
         best_scatterer, best_scaling = self._scatterer_from_optimizer_params(reccomendation)
@@ -120,15 +123,18 @@ class NevergradStrategy(HoloPyObject):
             reccomendation, _ = cost.convert_to_arguments(reccomendation)
         return reccomendation
 
-    def _estimate_error_from_fit(self):
+    def _estimate_error_from_fit(self, optimizer):
         # FIXME: Need to implement error estimation for each optimizer strategy
-        return 0
+        if self.optimizer == "CMA":
+            return optimizer.es.result.stds
+        elif self.optimizer == "OnePlusOne":
+            # FIXME: Is this the correct error estimate for OnePlusOne?
+            return optimizer.sigma * np.ones(optimizer.dimension)
+        return np.zeros(optimizer.dimension)
 
-    def _make_intervals_from_parameters(self, parameters, parameter_errors):
-        # FIXME: Make work for iterable of errors after implementing error
-        #        estimates 
-        return [UncertainValue(value, parameter_errors, name=key)
-                for key, value in parameters.items()]
+    def _make_intervals_from_parameters(self, parameters, par_errors):
+        return [UncertainValue(value, error, name=key)
+                for (key, value), error in zip(parameters.items(), par_errors)]
 
 
             
