@@ -17,7 +17,7 @@ from holopy.scattering.scatterer import _expand_parameters
 
 import sys
 sys.path.append('..')
-from nevergradfit import NevergradStrategy
+from nevergradfit import GradientFreeStrategy
 
 from nevergrad.optimization import optimizerlib
 
@@ -36,10 +36,10 @@ class TestNevergradStrategy(unittest.TestCase):
         result_ok = np.allclose(result, [1.0, 1.0], rtol=.001)
         self.assertTrue(result_ok)
 
-    def test_NevergradStrategy(self):
+    def test_GradientFreeStrategy(self):
         data = 0.5
         model = _SimpleModel(x = Uniform(0, 1))
-        strat = NevergradStrategy()
+        strat = GradientFreeStrategy()
         result = strat.optimize(model, data)
         result_ok = np.allclose(result.parameters['x'], .5, rtol=.001)
         self.assertTrue(result_ok)
@@ -77,7 +77,7 @@ class TestNevergradStrategy(unittest.TestCase):
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            fit_strategy = NevergradStrategy()
+            fit_strategy = GradientFreeStrategy()
             result = fit_strategy.optimize(model, data)
 
         fitted = result.scatterer

@@ -17,7 +17,7 @@ from holopy.scattering.errors import InvalidScatterer
 from nevergrad import instrumentation as instru
 from nevergrad.optimization import optimizerlib
 
-class NevergradStrategy(HoloPyObject):
+class GradientFreeStrategy(HoloPyObject):
     def __init__(self, optimizer='OnePlusOne', budget=128, num_workers=8):
         self.optimizer = optimizer
         self.budget = budget
