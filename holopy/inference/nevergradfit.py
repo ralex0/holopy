@@ -26,10 +26,9 @@ import numpy as np
 
 from holopy.core.holopy_object import HoloPyObject
 from holopy.inference.model import AlphaModel, PerfectLensModel
-from holopy.inference.result import FitResult, InferenceResult, UncertainValue
+from holopy.inference.result import FitResult, UncertainValue
 from holopy.scattering import calc_holo
 from holopy.scattering.scatterer import Sphere
-from holopy.scattering.errors import InvalidScatterer
 
 from nevergrad import instrumentation as instru
 from nevergrad.optimization import optimizerlib
@@ -82,7 +81,7 @@ class GradientFreeStrategy(HoloPyObject):
             return lambda x: -model.lnlike(x, data)
 
     def _scatterer_from_optimizer_params(self, params):
-        # TODO: Currently, parameter bounds are impoes by this function. Would 
+        # TODO: Currently, parameter bounds are imposed by this function. Would 
         #       be better if nevergrad had bounded parameter types.
         try: 
             x, y, z, index, radius, sixth = params

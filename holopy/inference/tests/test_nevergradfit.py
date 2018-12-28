@@ -30,18 +30,15 @@ import holopy as hp
 from holopy.core.io import get_example_data_path
 from holopy.core.process import normalize, bg_correct
 from holopy.core.tests.common import get_example_data
+from holopy.inference import GradientFreeStrategy
 from holopy.inference.model import AlphaModel
 from holopy.inference.prior import Prior, Uniform
 from holopy.scattering import Sphere, Mie
 from holopy.scattering.scatterer import _expand_parameters
 
-import sys
-sys.path.append('..')
-from nevergradfit import GradientFreeStrategy
-
 from nevergrad.optimization import optimizerlib
 
-class TestNevergradStrategy(unittest.TestCase):
+class TestGradientFreeStrategy(unittest.TestCase):
     def test_nevergrad_OnePlusOne(self):
         cost = lambda x: _simple_cost_function(x, x_obs=1.0)
         optimizer = optimizerlib.registry['OnePlusOne'](dimension=1, budget=256)
@@ -77,7 +74,7 @@ class TestNevergradStrategy(unittest.TestCase):
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            fitter = NevergradStrategy(budget=256)
+            fitter = GradientFreeStrategy(budget=256)
             result = fitter.optimize(model, data)
         
         fitted = result.scatterer
