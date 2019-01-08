@@ -101,7 +101,7 @@ class GradientFreeStrategy(HoloPyObject):
                        'center.2': z,
                        'r': np.min([np.max([1e-16, radius]), 5]),
                        'n': np.min([np.max([1.00, index]), 2.5])}
-        return scat_params, np.min([np.max([0, sixth]), 1.1])
+        return scat_params, np.min([np.max([.1, sixth]), 1.2])
 
     def _cost_function(self, data, scatterer, **kwargs):
         return self.calc_err_sq(data, scatterer, **kwargs)
