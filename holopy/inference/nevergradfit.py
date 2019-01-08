@@ -133,11 +133,11 @@ class GradientFreeStrategy(HoloPyObject):
                                       std=model.scatterer.n.interval/4)
         r = instru.variables.Gaussian(mean=model.scatterer.r.guess, 
                                       std=model.scatterer.r.interval/4)
-        try:
+        if 'alpha' in model.parameters:
             alpha = instru.variables.Gaussian(mean=model.alpha.guess, 
                                               std=model.alpha.interval/4)
             return x, y, z, n, r, alpha
-        except:
+        elif 'lens_angle' in model.parameters:
             lens_angle = instru.variables.Gaussian(mean=model.lens_angle.guess, 
                                                    std=model.lens_angle.interval/4)
             return x, y, z, n, r, lens_angle
