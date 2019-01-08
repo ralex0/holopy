@@ -29,6 +29,7 @@ from holopy.inference.model import AlphaModel, PerfectLensModel
 from holopy.inference.result import FitResult, UncertainValue
 from holopy.scattering import calc_holo
 from holopy.scattering.scatterer import Sphere
+from holopy.scattering.theory import MieLens
 
 from nevergrad import instrumentation as instru
 from nevergrad.optimization import optimizerlib
@@ -74,9 +75,17 @@ class GradientFreeStrategy(HoloPyObject):
             def cost(*x):
                 sph_params, alpha = self._scatterer_from_optimizer_params(x)
                 optics, scatterer = model._optics_scatterer(sph_params, data)
-                return self._cost_function(data, scatterer, alpha=alpha)
+                return self._cost_function(data, scatterer, alpha=alpha, theory='mieonly')
             x, y, z, n, r, alpha = self._make_instrumented_variables(model)
             return instru.InstrumentedFunction(cost, x, y, z, n, r, alpha)
+
+        if isinstance(model, PerfectLensModel):
+            def cost(*x):
+                sph_params, lens_angle = self._scatterer_from_optimizer_params(x)
+                optics, scatterer = model._optics_scatterer(sph_params, data)
+                return self._cost_function(data, scatterer, lens_angle=lens_angle, theory='mielens')
+            x, y, z, n, r, lens_angle = self._make_instrumented_variables(model)
+            return instru.InstrumentedFunction(cost, x, y, z, n, r, lens_angle)
         else:
             return lambda x: -model.lnlike(x, data)
 
@@ -103,8 +112,12 @@ class GradientFreeStrategy(HoloPyObject):
     
     def calc_residual(self, data, scatterer, **kwargs):
         dt = data.values.squeeze()
-        scaling = kwargs['alpha']
-        fit = calc_holo(data, scatterer, scaling=scaling).values.squeeze()
+        if 'theory' in kwargs:
+            if kwargs['theory'] == 'mieonly':
+                scaling = kwargs['alpha']
+                fit = calc_holo(data, scatterer, scaling=scaling).values.squeeze()
+            elif kwargs['theory'] == 'mielens':
+                fit = calc_holo(data, scatterer, theory=MieLens(lens_angle=kwargs['lens_angle'])).values.squeeze()
         return fit - dt
 
     def _make_instrumented_variables(self, model):
@@ -120,9 +133,15 @@ class GradientFreeStrategy(HoloPyObject):
                                       std=model.scatterer.n.interval/4)
         r = instru.variables.Gaussian(mean=model.scatterer.r.guess, 
                                       std=model.scatterer.r.interval/4)
-        alpha = instru.variables.Gaussian(mean=model.alpha.guess, 
-                                          std=model.alpha.interval/4)
-        return x, y, z, n, r, alpha
+        try:
+            alpha = instru.variables.Gaussian(mean=model.alpha.guess, 
+                                              std=model.alpha.interval/4)
+            return x, y, z, n, r, alpha
+        except:
+            lens_angle = instru.variables.Gaussian(mean=model.lens_angle.guess, 
+                                                   std=model.lens_angle.interval/4)
+            return x, y, z, n, r, lens_angle
+
 
     def _get_model_diminsion(self, model):
         return len(model.parameters)
