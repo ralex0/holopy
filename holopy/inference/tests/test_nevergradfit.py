@@ -48,7 +48,7 @@ class TestGradientFreeStrategy(unittest.TestCase):
 
     def test_nevergrad_CMA(self):
         cost = lambda x: _simple_cost_function(x, x_obs=np.array([1.0, 1.0]))
-        optimizer = optimizerlib.registry['CMA'](dimension=2, budget=512, num_workers=8)
+        optimizer = optimizerlib.registry['CMA'](dimension=2, budget=512)
         result = optimizer.optimize(cost, executor=None, batch_mode=True)
         result_ok = np.allclose(result, [1.0, 1.0], rtol=.001)
         self.assertTrue(result_ok)
@@ -94,7 +94,7 @@ class TestGradientFreeStrategy(unittest.TestCase):
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            fit_strategy = GradientFreeStrategy()
+            fit_strategy = GradientFreeStrategy(budget=256)
             result = fit_strategy.optimize(model, data)
 
         fitted = result.scatterer
