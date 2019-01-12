@@ -97,14 +97,14 @@ def zero_filter(image):
 
     for row, col in zip(zero_pix[0], zero_pix[1]):
         # in the bulk
-        if ((row > 0) and (row < (image.shape[0]-1)) and
-            (col > 0) and (col < image.shape[1]-1)):
-            output[row, col] = np.sum(image[row-1:row+2, col-1:col+2]) / 8.
+        if ((row > 0) and (row < (image.x.size - 1)) and
+            (col > 0) and (col < image.y.size - 1)):
+            output[:, row, col] = np.sum(image[:, row-1:row+2, col-1:col+2]) / 8.
         else: # deal with edges by padding
-            im_avg = image.sum()/(image.size - len(zero_pix[0]))
-            padded_im = np.ones((image.shape[0]+2, image.shape[1]+2)) * im_avg
-            padded_im[1:-1, 1:-1] = image
-            output[row, col] = np.sum(padded_im[row:row+3, col:col+3]) / 8.
+            im_avg = float(image.sum()/(image.size - len(zero_pix[0])))
+            padded_im = np.ones((1, image.x.size + 2, image.y.size + 2)) * im_avg
+            padded_im[:, 1:-1, 1:-1] = image
+            output[:, row, col] = np.sum(padded_im[:, row:row+3, col:col+3]) / 8.
         print('Pixel with value 0 reset to nearest neighbor average')
 
     return copy_metadata(image, output)
