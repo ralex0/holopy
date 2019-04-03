@@ -142,3 +142,7 @@ def test_make_guess():
     assert_allclose(guess1, gold1, atol=1e-5)
     assert_allclose(guess2, gold2, atol=1e-5)
 
+def test_cos_prior():
+    p = prior.Uniform(0, 2*np.pi, guess=np.pi)
+    assert_equal(np.cos(p), -1)
+

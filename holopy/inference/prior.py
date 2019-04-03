@@ -64,6 +64,9 @@ class Prior(HoloPyObject):
     def __truediv__(self, value):
         return self * (1/value)
 
+    def cos(self):
+        return np.cos(self.guess)
+
     def scale(self, physical):
         return physical / self.scale_factor
 
