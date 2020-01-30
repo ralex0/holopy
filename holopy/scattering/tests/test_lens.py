@@ -26,7 +26,7 @@ class TestLensScatteringTheory(unittest.TestCase):
         assert_allclose(np.max(LENSMIE._theta_pts), LENS_ANGLE, **QLIM_TOL)
 
     def test_theta_quad_pts_num(self):
-        assert_equal(len(LENSMIE._theta_pts), len(LENSMIE._theta_wts))
+        assert_equal(len(LENSMIE._theta_pts), LENSMIE.nquadpts)
 
     def test_phi_quad_pts_min(self):
         assert_allclose(np.min(LENSMIE._phi_pts), 0., **QLIM_TOL)
@@ -35,11 +35,11 @@ class TestLensScatteringTheory(unittest.TestCase):
         assert_allclose(np.max(LENSMIE._phi_pts), 2*np.pi, **QLIM_TOL)
 
     def test_phi_quad_pts_num(self):
-        assert_equal(len(LENSMIE._phi_pts), len(LENSMIE._phi_wts))
+        assert_equal(len(LENSMIE._phi_pts), LENSMIE.nquadpts)
 
     def test_integrate_over_theta_with_quad_points(self):
         pts = LENSMIE._theta_pts
-        wts = LENSMIE._theta_wts
+        wts = LENSMIE._dphi_dth
         func = np.cos
         integral = np.sum(func(pts) * wts)
         expected_val = np.sin(LENSMIE.lens_angle) # analytic result
@@ -47,7 +47,7 @@ class TestLensScatteringTheory(unittest.TestCase):
 
     def test_integrate_over_phi_with_quad_points(self):
         pts = LENSMIE._phi_pts
-        wts = LENSMIE._phi_wts
+        wts = LENSMIE._dphi_dth
         func = lambda x: np.cos(np.pi * x)
         integral = np.sum(func(pts) * wts)
         expected_val = np.sin(2 * np.pi ** 2) /  np.pi # analytic result
@@ -55,16 +55,11 @@ class TestLensScatteringTheory(unittest.TestCase):
 
     def test_integrate_over_2D_with_quad_points(self):
         pts_theta = LENSMIE._theta_pts
-        wts_theta = LENSMIE._theta_wts
-
         pts_phi = LENSMIE._phi_pts
-        wts_phi = LENSMIE._phi_wts
-
-        pts_theta, pts_phi = np.meshgrid(pts_theta, pts_phi)
-        wts_theta, wts_phi = np.meshgrid(wts_theta, wts_phi)
+        wts = LENSMIE._dphi_dth
 
         func = lambda theta, phi: np.cos(theta) * np.cos(np.pi * phi)
-        integral = np.sum(func(pts_theta, pts_phi) * wts_theta * wts_phi)
+        integral = np.sum(func(pts_theta, pts_phi) * wts)
         expected_val = np.sin(1.) * np.sin(2 * np.pi ** 2) /  np.pi
         assert_allclose(integral, expected_val)
 
@@ -81,8 +76,8 @@ class TestLensScatteringTheory(unittest.TestCase):
         actual_size = s_matrix.size
         actual_shape = s_matrix.shape
 
-        expected_size = 4 * theory.quad_npts_theta * theory.quad_npts_phi
-        expected_shape = (4, theory.quad_npts_theta, theory.quad_npts_phi, 1)
+        expected_size = 4 * theory.nquadpts
+        expected_shape = (4, theory.nquadpts, 1)
 
         self.assertTrue(actual_size==expected_size)
         self.assertTrue(actual_shape==expected_shape)
@@ -159,18 +154,6 @@ class TestLensScatteringTheory(unittest.TestCase):
 
         assert_allclose(fields_old, fields_new, atol=5e-3)
 
-    def test_calc_holo_theta_npts_not_equal_phi_npts(self):
-        scatterer = test_common.sphere
-        pts = detector_grid(shape=4, spacing=test_common.pixel_scale)
-        pts = update_metadata(pts, illum_wavelen=test_common.wavelen,
-                              medium_index=test_common.index,
-                              illum_polarization=test_common.xpolarization)
-        theory = LensScatteringTheory(LENS_ANGLE, Mie(),
-                                          quad_npts_theta=8,
-                                          quad_npts_phi=10)
-        holo = calc_holo(pts, scatterer, theory=theory)
-        self.assertTrue(True)
-
 
 def _setup_mielens_calculator(scatterer, medium_wavevec, medium_index):
     particle_kz = medium_wavevec * scatterer.z
@@ -207,7 +190,6 @@ def _get_smatrix_theta_near_phi_is_pi_over_2(smatrix, sinphi, phi, theta):
     s = smatrix[sinphi == max(abs(sinphi))]
     t = theta[sinphi == max(abs(sinphi))]
     return s / sp, t
-
 
 if __name__ == '__main__':
     unittest.main()
